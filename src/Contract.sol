@@ -4,9 +4,12 @@ pragma solidity ^0.8.13;
 contract CarbonCredits {
     address public owner;
     mapping(address => bool) public providers;
+    mapping(address => bool) public buyers;
     mapping(address => uint256) public credits;
     mapping(address => string) public providerNames;
+    mapping(address => string) public buyerNames;
     address[] public providerList;
+    address[] public buyerList;
 
     constructor() {
         owner = msg.sender;
@@ -26,6 +29,12 @@ contract CarbonCredits {
         providerList.push(provider);
     }
 
+    function addBuyer(address buyer, string memory name) public onlyOwner {
+        buyers[buyer] = true;
+        buyerNames[buyer] = name;
+        buyerList.push(buyer);
+    }
+
     function addCredits(address provider, uint256 amount) public onlyOwner {
         require(providers[provider] == true);
         credits[provider] += amount;
@@ -33,12 +42,19 @@ contract CarbonCredits {
         emit CreditsAdded(provider, amount);
     }
 
+    uint256 public creditPriceInWei = 100000000000000; // 0.0001 Ether
+
     function buyCredits(address provider, uint256 amount) public payable {
         require(providers[provider] == true);
+        require(buyers[msg.sender] == true);
         require(credits[provider] >= amount);
-        require(msg.value >= amount);
+    
+        uint256 cost = creditPriceInWei * amount;
+        require(msg.value >= cost, "Not enough Ether sent");
 
         credits[provider] -= amount;
+        credits[msg.sender] += amount; // Credit the buyer's account
+        payable(provider).transfer(cost); // Transfer the Ether to the provider
 
         emit CreditsBought(msg.sender, provider, amount);
     }
@@ -59,15 +75,23 @@ contract CarbonCredits {
         payable(msg.sender).transfer(amount);
     }
 
-    function getCreditBalance(address provider) public view returns (uint256) {
-        return credits[provider];
+    function getCreditBalance(address account) public view returns (uint256) {
+        return credits[account];
     }
 
     function getProviderByIndex(uint index) public view returns (address) {
         return providerList[index];
     }
 
+    function getBuyerByIndex(uint index) public view returns (address) {
+        return buyerList[index];
+    }
+
     function getTotalProviders() public view returns (uint) {
         return providerList.length;
+    }
+
+    function getTotalBuyers() public view returns (uint) {
+        return buyerList.length;
     }
 }
